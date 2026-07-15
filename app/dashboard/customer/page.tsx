@@ -1,10 +1,53 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useAuthStore, useOrderStore } from '@/lib/store';
+import { formatINR } from '@/lib/utils';
+
+const STATUS_LABEL: Record<string, { label: string; icon: string; className: string }> = {
+  pending: { label: 'Pending', icon: '⏳', className: 'bg-yellow-100 text-yellow-700' },
+  confirmed: { label: 'Confirmed', icon: '✔️', className: 'bg-blue-100 text-blue-700' },
+  preparing: { label: 'Preparing', icon: '👨‍🍳', className: 'bg-orange-100 text-orange-700' },
+  ready: { label: 'Ready for pickup', icon: '🔔', className: 'bg-green-100 text-green-700' },
+  completed: { label: 'Completed', icon: '✅', className: 'bg-gray-100 text-gray-700' },
+  cancelled: { label: 'Cancelled', icon: '✖️', className: 'bg-red-100 text-red-700' },
+};
 
 export default function CustomerHome() {
+  const { user } = useAuthStore();
+  const { orders, loading, fetchOrders } = useOrderStore();
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  const recentOrders = orders.slice(0, 3);
+
+  const stats = useMemo(() => {
+    const counted = orders.filter((o) => o.status !== 'cancelled');
+    const totalSpent = counted.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+
+    const itemCounts = new Map<string, number>();
+    for (const order of counted) {
+      for (const item of order.items) {
+        const name = item.menuItem?.name;
+        if (name) itemCounts.set(name, (itemCounts.get(name) ?? 0) + item.quantity);
+      }
+    }
+    let favorite = '—';
+    let best = 0;
+    for (const [name, count] of itemCounts) {
+      if (count > best) {
+        best = count;
+        favorite = name;
+      }
+    }
+
+    return { totalOrders: counted.length, totalSpent, favorite };
+  }, [orders]);
+
   return (
     <div className="p-8 space-y-8">
       {/* Header */}
@@ -14,7 +57,9 @@ export default function CustomerHome() {
         transition={{ duration: 0.5 }}
         className="space-y-2"
       >
-        <h1 className="text-4xl font-bold text-foreground">Welcome Back!</h1>
+        <h1 className="text-4xl font-bold text-foreground">
+          Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ' Back'}!
+        </h1>
         <p className="text-lg text-muted-foreground">What would you like to do today?</p>
       </motion.div>
 
@@ -26,10 +71,10 @@ export default function CustomerHome() {
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
       >
         {[
-          { title: 'Browse Menu', description: 'Order your favorite items', href: '/dashboard/customer/menu', icon: '☕', color: 'from-primary' },
-          { title: 'Your Orders', description: 'Track active orders', href: '/dashboard/customer/orders', icon: '📦', color: 'from-accent' },
-          { title: 'Book Table', description: 'Reserve a table', href: '/dashboard/customer/bookings', icon: '📅', color: 'from-secondary' },
-          { title: 'View Cart', description: 'Check your cart', href: '/dashboard/customer/cart', icon: '🛒', color: 'from-primary/50' },
+          { title: 'Browse Menu', description: 'Order your favorite items', href: '/dashboard/customer/menu', icon: '☕' },
+          { title: 'Your Orders', description: 'Track active orders', href: '/dashboard/customer/orders', icon: '📦' },
+          { title: 'Book Table', description: 'Reserve a table', href: '/dashboard/customer/bookings', icon: '📅' },
+          { title: 'View Cart', description: 'Check your cart', href: '/dashboard/customer/cart', icon: '🛒' },
         ].map((action, index) => (
           <Link key={index} href={action.href}>
             <motion.button
@@ -55,30 +100,40 @@ export default function CustomerHome() {
         className="bg-card border border-border rounded-2xl p-8"
       >
         <h2 className="text-2xl font-bold text-foreground mb-6">Recent Orders</h2>
-        <div className="space-y-4">
-          {[
-            { id: '1', items: 'Cappuccino + Croissant', status: 'Ready for pickup', date: 'Today, 10:30 AM', icon: '✅' },
-            { id: '2', items: 'Espresso Double Shot', status: 'Preparing', date: 'Today, 10:15 AM', icon: '⏳' },
-            { id: '3', items: 'Latte + Pastry', status: 'Completed', date: 'Yesterday, 3:45 PM', icon: '✅' },
-          ].map((order) => (
-            <div key={order.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border/50">
-              <div className="flex items-center gap-4">
-                <span className="text-2xl">{order.icon}</span>
-                <div>
-                  <p className="font-semibold text-foreground">{order.items}</p>
-                  <p className="text-sm text-muted-foreground">{order.date}</p>
+        {loading && orders.length === 0 ? (
+          <p className="text-muted-foreground text-center py-6">Loading your orders...</p>
+        ) : recentOrders.length === 0 ? (
+          <div className="text-center py-6 space-y-3">
+            <p className="text-muted-foreground">You haven&apos;t placed any orders yet.</p>
+            <Link href="/dashboard/customer/menu" className="text-primary font-medium hover:underline">
+              Browse the menu to get started →
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {recentOrders.map((order) => {
+              const status = STATUS_LABEL[order.status] ?? STATUS_LABEL.completed;
+              return (
+                <div key={order.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl">{status.icon}</span>
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        {order.items.map((i) => i.menuItem.name).join(' + ') || 'Order'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(order.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${status.className}`}>
+                    {status.label}
+                  </span>
                 </div>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                order.status === 'Ready for pickup' ? 'bg-green-100 text-green-700' :
-                order.status === 'Preparing' ? 'bg-blue-100 text-blue-700' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {order.status}
-              </span>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </motion.div>
 
       {/* Statistics */}
@@ -89,9 +144,9 @@ export default function CustomerHome() {
         className="grid grid-cols-1 md:grid-cols-3 gap-6"
       >
         {[
-          { label: 'Total Orders', value: '24', icon: '📊' },
-          { label: 'Amount Spent', value: '₹1,565', icon: '💰' },
-          { label: 'Favorite Item', value: 'Cappuccino', icon: '⭐' },
+          { label: 'Total Orders', value: String(stats.totalOrders), icon: '📊' },
+          { label: 'Amount Spent', value: formatINR(stats.totalSpent), icon: '💰' },
+          { label: 'Favorite Item', value: stats.favorite, icon: '⭐' },
         ].map((stat, index) => (
           <div key={index} className="bg-card border border-border rounded-2xl p-6">
             <div className="text-3xl mb-3">{stat.icon}</div>

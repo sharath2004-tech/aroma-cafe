@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PhoneAuthForm } from '@/components/auth/PhoneAuthForm';
@@ -11,10 +11,7 @@ import { useAuthStore } from '@/lib/store';
 
 function RegisterFormContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { register, loginWithGoogle, isLoading, error, setError } = useAuthStore();
-
-  const defaultRole = (searchParams.get('role') || 'customer') as 'customer' | 'chef' | 'admin';
 
   const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [formData, setFormData] = useState({
@@ -22,7 +19,6 @@ function RegisterFormContent() {
     email: '',
     password: '',
     confirmPassword: '',
-    role: defaultRole,
   });
   const [localError, setLocalError] = useState('');
 
@@ -53,9 +49,10 @@ function RegisterFormContent() {
     }
 
     try {
-      await register(formData.name, formData.email, formData.password, formData.role);
-      // After successful registration, redirect based on role
-      router.push(`/dashboard/${formData.role}`);
+      await register(formData.name, formData.email, formData.password);
+      // Roles are assigned server-side; redirect to the actual dashboard
+      const role = useAuthStore.getState().user?.role ?? 'customer';
+      router.push(`/dashboard/${role}`);
     } catch (err) {
       setLocalError('Registration failed. Please try again.');
     }
@@ -64,10 +61,8 @@ function RegisterFormContent() {
   const handleGoogleSignIn = async () => {
     setLocalError('');
     try {
-      await loginWithGoogle(formData.role);
-      // The chosen role only applies to brand-new accounts; an existing
-      // account keeps its stored role, so redirect from the actual profile.
-      const role = useAuthStore.getState().user?.role ?? formData.role;
+      await loginWithGoogle();
+      const role = useAuthStore.getState().user?.role ?? 'customer';
       router.push(`/dashboard/${role}`);
     } catch (err) {
       setLocalError('Google sign-in failed. Please try again.');
@@ -128,22 +123,8 @@ function RegisterFormContent() {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Role</label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="customer">Customer</option>
-                <option value="chef">Chef</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-
             <PhoneAuthForm
-              syncPayload={{ name: formData.name, role: formData.role }}
+              syncPayload={{ name: formData.name }}
               validateBeforeSend={() => (formData.name.trim() ? null : 'Please enter your full name first')}
             />
           </div>
@@ -180,20 +161,6 @@ function RegisterFormContent() {
               placeholder="your@email.com"
               className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Role</label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="customer">Customer</option>
-              <option value="chef">Chef</option>
-              <option value="admin">Admin</option>
-            </select>
           </div>
 
           <div className="space-y-2">

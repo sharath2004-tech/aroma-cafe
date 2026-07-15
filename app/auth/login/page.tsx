@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PhoneAuthForm } from '@/components/auth/PhoneAuthForm';
+import { sendPasswordReset } from '@/lib/firebase/auth';
 import { useAuthStore } from '@/lib/store';
 
 export default function LoginPage() {
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +46,26 @@ export default function LoginPage() {
       router.push(`/dashboard/${role}`);
     } catch (err) {
       setLocalError('Google sign-in failed. Please try again.');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setLocalError('');
+    setResetMessage('');
+    if (!email) {
+      setLocalError('Enter your email above first, then click "Forgot password?"');
+      return;
+    }
+    try {
+      await sendPasswordReset(email);
+      setResetMessage(`Password reset link sent to ${email}. Check your inbox (and spam folder).`);
+    } catch (err: any) {
+      // Firebase doesn't reveal whether the email exists; most real failures are rate limits.
+      setLocalError(
+        err?.code === 'auth/invalid-email'
+          ? 'That email address looks invalid.'
+          : 'Could not send the reset email. Please try again in a moment.'
+      );
     }
   };
 
@@ -97,6 +119,11 @@ export default function LoginPage() {
                 {localError || error}
               </div>
             )}
+            {resetMessage && (
+              <div className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 px-4 py-2 rounded-lg text-sm">
+                {resetMessage}
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Email</label>
@@ -110,7 +137,16 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">Password</label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-xs text-muted-foreground hover:text-primary transition"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <input
                 type="password"
                 value={password}

@@ -9,11 +9,11 @@ interface AuthStore {
   isInitializing: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role: string) => Promise<void>;
-  loginWithGoogle: (role?: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   // Syncs the Mongo profile after a Firebase sign-in the store didn't perform
   // itself (e.g. phone OTP). Returns the synced user so callers can route by role.
-  syncProfile: (payload?: { name?: string; role?: string }) => Promise<User>;
+  syncProfile: (payload?: { name?: string }) => Promise<User>;
   updateProfile: (payload: { name?: string; phone?: string }) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -36,9 +36,9 @@ interface MenuStore {
   loading: boolean;
   error: string | null;
   fetchItems: () => Promise<void>;
-  addItem: (item: MenuItem) => void;
-  updateItem: (id: string, item: Partial<MenuItem>) => void;
-  deleteItem: (id: string) => void;
+  addItem: (item: Partial<MenuItem>) => Promise<void>;
+  updateItem: (id: string, item: Partial<MenuItem>) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
   getItemById: (id: string) => MenuItem | undefined;
 }
 
@@ -110,6 +110,20 @@ function mapOrderResponse(order: any): PreOrder {
   };
 }
 
+function mapMenuItemResponse(item: any): MenuItem {
+  return {
+    id: item._id ?? item.id,
+    name: item.name,
+    description: item.description ?? '',
+    price: item.price,
+    image: item.image,
+    category: item.category,
+    available: item.available ?? true,
+    preparationTime: item.preparationTime ?? 0,
+    createdAt: item.createdAt
+  };
+}
+
 function mapBookingResponse(booking: any): TableBooking {
   return {
     id: booking._id,
@@ -144,11 +158,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
   },
 
-  register: async (name: string, email: string, password: string, role: string) => {
+  register: async (name: string, email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
       await signUpWithEmail(name, email, password);
-      const { user } = await authApi.sync({ name, role: role as 'customer' | 'chef' | 'admin' });
+      const { user } = await authApi.sync({ name });
       set({ user, isLoading: false });
     } catch (error: any) {
       set({ error: error?.response?.data?.message ?? (error as Error).message, isLoading: false });
@@ -156,14 +170,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
   },
 
-  loginWithGoogle: async (role?: string) => {
+  loginWithGoogle: async () => {
     set({ isLoading: true, error: null });
     try {
       const firebaseUser = await signInWithGoogle();
-      const { user } = await authApi.sync({
-        name: firebaseUser.displayName ?? undefined,
-        role: role as 'customer' | 'chef' | 'admin' | undefined
-      });
+      const { user } = await authApi.sync({ name: firebaseUser.displayName ?? undefined });
       set({ user, isLoading: false });
     } catch (error: any) {
       set({ error: error?.response?.data?.message ?? (error as Error).message, isLoading: false });
@@ -174,10 +185,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   syncProfile: async (payload = {}) => {
     set({ isLoading: true, error: null });
     try {
-      const { user } = await authApi.sync({
-        name: payload.name,
-        role: payload.role as 'customer' | 'chef' | 'admin' | undefined
-      });
+      const { user } = await authApi.sync({ name: payload.name });
       set({ user, isLoading: false });
       return user;
     } catch (error: any) {
@@ -283,26 +291,46 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const { items } = await menuApi.getAll();
-      set({ items, loading: false });
+      set({ items: items.map(mapMenuItemResponse), loading: false });
     } catch (error: any) {
       set({ error: error?.response?.data?.message ?? (error as Error).message, loading: false });
     }
   },
-  
-  addItem: (item) => {
-    set(state => ({ items: [...state.items, item] }));
+
+  addItem: async (data) => {
+    set({ error: null });
+    try {
+      const { item } = await menuApi.create(data);
+      set(state => ({ items: [...state.items, mapMenuItemResponse(item)] }));
+    } catch (error: any) {
+      set({ error: error?.response?.data?.message ?? (error as Error).message });
+      throw error;
+    }
   },
-  
-  updateItem: (id, item) => {
-    set(state => ({
-      items: state.items.map(i => (i.id === id ? { ...i, ...item } : i))
-    }));
+
+  updateItem: async (id, data) => {
+    set({ error: null });
+    try {
+      const { item } = await menuApi.update(id, data);
+      const mapped = mapMenuItemResponse(item);
+      set(state => ({ items: state.items.map(i => (i.id === id ? mapped : i)) }));
+    } catch (error: any) {
+      set({ error: error?.response?.data?.message ?? (error as Error).message });
+      throw error;
+    }
   },
-  
-  deleteItem: (id) => {
-    set(state => ({ items: state.items.filter(i => i.id !== id) }));
+
+  deleteItem: async (id) => {
+    set({ error: null });
+    try {
+      await menuApi.delete(id);
+      set(state => ({ items: state.items.filter(i => i.id !== id) }));
+    } catch (error: any) {
+      set({ error: error?.response?.data?.message ?? (error as Error).message });
+      throw error;
+    }
   },
-  
+
   getItemById: (id) => {
     return get().items.find(i => i.id === id);
   },

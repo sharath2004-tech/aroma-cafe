@@ -1,20 +1,75 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import Link from 'next/link';
-
-const chartData = [
-  { day: 'Mon', orders: 120, revenue: 450 },
-  { day: 'Tue', orders: 150, revenue: 620 },
-  { day: 'Wed', orders: 130, revenue: 480 },
-  { day: 'Thu', orders: 180, revenue: 750 },
-  { day: 'Fri', orders: 220, revenue: 950 },
-  { day: 'Sat', orders: 280, revenue: 1200 },
-  { day: 'Sun', orders: 200, revenue: 850 },
-];
+import { useBookingStore, useOrderStore } from '@/lib/store';
+import { formatINR } from '@/lib/utils';
 
 export default function AdminDashboard() {
+  const { orders, loading: ordersLoading, fetchAllOrders } = useOrderStore();
+  const { bookings, fetchBookings } = useBookingStore();
+
+  useEffect(() => {
+    fetchAllOrders();
+    fetchBookings();
+  }, [fetchAllOrders, fetchBookings]);
+
+  const countedOrders = useMemo(() => orders.filter((o) => o.status !== 'cancelled'), [orders]);
+
+  const stats = useMemo(() => {
+    const revenue = countedOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+    const customers = new Set(countedOrders.map((o) => o.customerId).filter(Boolean)).size;
+    return {
+      totalOrders: countedOrders.length,
+      revenue,
+      customers,
+      avgOrder: countedOrders.length ? revenue / countedOrders.length : 0,
+    };
+  }, [countedOrders]);
+
+  // Last 7 days, oldest first.
+  const chartData = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - (6 - i));
+      return d;
+    });
+    return days.map((day) => {
+      const next = new Date(day);
+      next.setDate(next.getDate() + 1);
+      const dayOrders = countedOrders.filter((o) => {
+        const t = new Date(o.createdAt).getTime();
+        return t >= day.getTime() && t < next.getTime();
+      });
+      return {
+        day: day.toLocaleDateString([], { weekday: 'short' }),
+        orders: dayOrders.length,
+        revenue: dayOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
+      };
+    });
+  }, [countedOrders]);
+
+  const recentActivity = useMemo(() => {
+    const orderEvents = orders.slice(0, 6).map((o) => ({
+      type: 'Order',
+      icon: '📦',
+      message: `Order #${o.id.slice(-6).toUpperCase()} • ${o.items.length} item${o.items.length !== 1 ? 's' : ''} • ${formatINR(o.totalPrice || 0)} (${o.status})`,
+      at: new Date(o.createdAt),
+    }));
+    const bookingEvents = bookings.slice(0, 6).map((b) => ({
+      type: 'Booking',
+      icon: '📅',
+      message: `Table ${b.tableNumber} booked for ${b.guestCount} guest${b.guestCount !== 1 ? 's' : ''} (${b.status})`,
+      at: new Date(b.createdAt),
+    }));
+    return [...orderEvents, ...bookingEvents]
+      .sort((a, b) => b.at.getTime() - a.at.getTime())
+      .slice(0, 5);
+  }, [orders, bookings]);
+
   return (
     <div className="p-8 space-y-8">
       {/* Header */}
@@ -36,22 +91,17 @@ export default function AdminDashboard() {
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
       >
         {[
-          { label: 'Total Orders', value: '1,240', change: '+12.5%', icon: '📦' },
-          { label: 'Revenue', value: '₹85,400', change: '+8.2%', icon: '💰' },
-          { label: 'Active Customers', value: '340', change: '+5.1%', icon: '👥' },
-          { label: 'Avg Order Value', value: '₹285', change: '+3.8%', icon: '📊' },
+          { label: 'Total Orders', value: String(stats.totalOrders), icon: '📦' },
+          { label: 'Revenue', value: formatINR(stats.revenue), icon: '💰' },
+          { label: 'Customers', value: String(stats.customers), icon: '👥' },
+          { label: 'Avg Order Value', value: formatINR(stats.avgOrder), icon: '📊' },
         ].map((stat, index) => (
           <motion.div
             key={index}
             whileHover={{ translateY: -4 }}
             className="bg-card border border-border rounded-2xl p-6 space-y-3"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-3xl">{stat.icon}</span>
-              <span className="text-sm font-medium text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                {stat.change}
-              </span>
-            </div>
+            <span className="text-3xl">{stat.icon}</span>
             <div>
               <p className="text-muted-foreground text-sm">{stat.label}</p>
               <p className="text-2xl font-bold text-foreground">{stat.value}</p>
@@ -74,8 +124,8 @@ export default function AdminDashboard() {
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
               <XAxis dataKey="day" stroke="var(--color-muted-foreground)" />
-              <YAxis stroke="var(--color-muted-foreground)" />
-              <Tooltip 
+              <YAxis allowDecimals={false} stroke="var(--color-muted-foreground)" />
+              <Tooltip
                 contentStyle={{
                   backgroundColor: 'var(--color-card)',
                   border: `1px solid var(--color-border)`,
@@ -96,7 +146,7 @@ export default function AdminDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
               <XAxis dataKey="day" stroke="var(--color-muted-foreground)" />
               <YAxis stroke="var(--color-muted-foreground)" />
-              <Tooltip 
+              <Tooltip
                 contentStyle={{
                   backgroundColor: 'var(--color-card)',
                   border: `1px solid var(--color-border)`,
@@ -143,25 +193,30 @@ export default function AdminDashboard() {
         className="bg-card border border-border rounded-2xl p-6"
       >
         <h2 className="text-2xl font-bold text-foreground mb-6">Recent Activity</h2>
-        <div className="space-y-3">
-          {[
-            { type: 'Order', message: 'New order #1240 from John Doe', time: '5 minutes ago', icon: '📦' },
-            { type: 'Booking', message: 'Table booking confirmed for 6 people', time: '15 minutes ago', icon: '📅' },
-            { type: 'Order', message: 'Order #1239 ready for pickup', time: '25 minutes ago', icon: '✅' },
-            { type: 'User', message: 'New user registration: Jane Smith', time: '1 hour ago', icon: '👤' },
-          ].map((activity, index) => (
-            <div key={index} className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg border border-border/50">
-              <span className="text-2xl">{activity.icon}</span>
-              <div className="flex-1">
-                <p className="font-medium text-foreground">{activity.message}</p>
-                <p className="text-xs text-muted-foreground">{activity.time}</p>
+        {ordersLoading && recentActivity.length === 0 ? (
+          <p className="text-muted-foreground text-center py-6">Loading activity...</p>
+        ) : recentActivity.length === 0 ? (
+          <p className="text-muted-foreground text-center py-6">
+            No activity yet — orders and bookings will appear here as they come in.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {recentActivity.map((activity, index) => (
+              <div key={index} className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg border border-border/50">
+                <span className="text-2xl">{activity.icon}</span>
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">{activity.message}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {activity.at.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                  </p>
+                </div>
+                <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full font-medium">
+                  {activity.type}
+                </span>
               </div>
-              <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full font-medium">
-                {activity.type}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </motion.div>
     </div>
   );

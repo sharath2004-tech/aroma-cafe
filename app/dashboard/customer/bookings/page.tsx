@@ -1,40 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-
-interface Booking {
-  id: string;
-  tableNumber: number;
-  guestCount: number;
-  bookingDate: Date;
-  duration: number;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-}
+import { useBookingStore } from '@/lib/store';
 
 export default function BookingsPage() {
-  const [bookings, setBookings] = useState<Booking[]>([
-    {
-      id: '#B001',
-      tableNumber: 5,
-      guestCount: 4,
-      bookingDate: new Date(Date.now() + 2 * 3600000),
-      duration: 90,
-      status: 'confirmed',
-    },
-    {
-      id: '#B002',
-      tableNumber: 8,
-      guestCount: 2,
-      bookingDate: new Date(Date.now() - 1 * 3600000),
-      duration: 60,
-      status: 'completed',
-    },
-  ]);
+  const { bookings, loading, error, fetchBookings, createBooking, cancelBooking } = useBookingStore();
 
   const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [localError, setLocalError] = useState('');
   const [formData, setFormData] = useState({
+    tableNumber: '1',
     guestCount: '2',
     bookingDate: new Date().toISOString().split('T')[0],
     bookingTime: '18:00',
@@ -42,31 +20,51 @@ export default function BookingsPage() {
     specialRequests: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const newBooking: Booking = {
-      id: `#B${String(bookings.length + 1).padStart(3, '0')}`,
-      tableNumber: Math.floor(Math.random() * 10) + 1,
-      guestCount: parseInt(formData.guestCount),
-      bookingDate: new Date(`${formData.bookingDate}T${formData.bookingTime}`),
-      duration: parseInt(formData.duration),
-      status: 'pending',
-    };
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
 
-    setBookings([newBooking, ...bookings]);
-    setShowForm(false);
-    setFormData({
-      guestCount: '2',
-      bookingDate: new Date().toISOString().split('T')[0],
-      bookingTime: '18:00',
-      duration: '90',
-      specialRequests: '',
-    });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLocalError('');
+
+    const bookingTime = new Date(`${formData.bookingDate}T${formData.bookingTime}`);
+    if (Number.isNaN(bookingTime.getTime()) || bookingTime <= new Date()) {
+      setLocalError('Please choose a date and time in the future');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await createBooking({
+        tableNumber: parseInt(formData.tableNumber),
+        guestCount: parseInt(formData.guestCount),
+        bookingTime: bookingTime.toISOString() as unknown as Date,
+        duration: parseInt(formData.duration),
+        specialRequests: formData.specialRequests || undefined,
+      });
+      setShowForm(false);
+      setFormData({
+        tableNumber: '1',
+        guestCount: '2',
+        bookingDate: new Date().toISOString().split('T')[0],
+        bookingTime: '18:00',
+        duration: '90',
+        specialRequests: '',
+      });
+    } catch {
+      // store already surfaces the error message
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const upcomingBookings = bookings.filter(b => new Date(b.bookingDate) > new Date());
-  const pastBookings = bookings.filter(b => new Date(b.bookingDate) <= new Date());
+  const upcomingBookings = bookings.filter(
+    (b) => new Date(b.bookingTime) > new Date() && b.status !== 'cancelled'
+  );
+  const pastBookings = bookings.filter(
+    (b) => new Date(b.bookingTime) <= new Date() || b.status === 'cancelled'
+  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -104,6 +102,12 @@ export default function BookingsPage() {
         </Button>
       </motion.div>
 
+      {(localError || error) && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
+          {localError || error}
+        </div>
+      )}
+
       {/* Booking Form */}
       <AnimatePresence>
         {showForm && (
@@ -114,7 +118,20 @@ export default function BookingsPage() {
             className="bg-card border border-border rounded-2xl p-8"
           >
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Table</label>
+                  <select
+                    value={formData.tableNumber}
+                    onChange={(e) => setFormData({ ...formData, tableNumber: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>Table {n}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Number of Guests</label>
                   <select
@@ -176,14 +193,22 @@ export default function BookingsPage() {
 
               <Button
                 type="submit"
+                disabled={submitting}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3"
               >
-                Book Table
+                {submitting ? 'Booking...' : 'Book Table'}
               </Button>
             </form>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Loading */}
+      {loading && bookings.length === 0 && (
+        <div className="bg-card border border-border rounded-2xl p-12 text-center text-muted-foreground">
+          Loading your bookings...
+        </div>
+      )}
 
       {/* Upcoming Bookings */}
       {upcomingBookings.length > 0 && (
@@ -194,50 +219,58 @@ export default function BookingsPage() {
           className="space-y-4"
         >
           <h2 className="text-2xl font-bold text-foreground">Upcoming Bookings</h2>
-          {upcomingBookings.map((booking, index) => (
-            <motion.div
-              key={booking.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="bg-card border border-border rounded-2xl p-6 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="text-5xl">🪑</div>
+          {upcomingBookings.map((booking, index) => {
+            const when = new Date(booking.bookingTime);
+            return (
+              <motion.div
+                key={booking.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="bg-card border border-border rounded-2xl p-6 space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="text-5xl">🪑</div>
+                    <div>
+                      <h3 className="text-xl font-bold text-foreground">Table {booking.tableNumber}</h3>
+                      <p className="text-muted-foreground">{booking.guestCount} Guest{booking.guestCount !== 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusBadge(booking.status)}`}>
+                    {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <h3 className="text-xl font-bold text-foreground">Table {booking.tableNumber}</h3>
-                    <p className="text-muted-foreground">{booking.guestCount} Guest{booking.guestCount !== 1 ? 's' : ''}</p>
+                    <p className="text-muted-foreground mb-1">Date & Time</p>
+                    <p className="font-semibold text-foreground">
+                      {when.toLocaleDateString()} at {when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Duration</p>
+                    <p className="font-semibold text-foreground">{booking.duration} minutes</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Special Requests</p>
+                    <p className="font-semibold text-foreground">{booking.specialRequests || '—'}</p>
+                  </div>
+                  <div className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => cancelBooking(booking.id)}
+                    >
+                      Cancel Booking
+                    </Button>
                   </div>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusBadge(booking.status)}`}>
-                  {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground mb-1">Date & Time</p>
-                  <p className="font-semibold text-foreground">
-                    {booking.bookingDate.toLocaleDateString()} at {booking.bookingDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">Duration</p>
-                  <p className="font-semibold text-foreground">{booking.duration} minutes</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">Booking ID</p>
-                  <p className="font-semibold text-foreground">{booking.id}</p>
-                </div>
-                <div className="text-right">
-                  <Button variant="outline" size="sm">
-                    Modify
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </motion.div>
       )}
 
@@ -251,21 +284,39 @@ export default function BookingsPage() {
         >
           <h2 className="text-2xl font-bold text-foreground">Past Bookings</h2>
           <div className="space-y-3">
-            {pastBookings.map((booking) => (
-              <motion.div
-                key={booking.id}
-                className="bg-card border border-border rounded-lg p-4 flex items-center justify-between hover:border-primary/50 transition-all"
-              >
-                <div>
-                  <p className="font-semibold text-foreground">Table {booking.tableNumber} • {booking.guestCount} Guests</p>
-                  <p className="text-sm text-muted-foreground">
-                    {booking.bookingDate.toLocaleDateString()} at {booking.bookingDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-                <span className="text-2xl">✅</span>
-              </motion.div>
-            ))}
+            {pastBookings.map((booking) => {
+              const when = new Date(booking.bookingTime);
+              return (
+                <motion.div
+                  key={booking.id}
+                  className="bg-card border border-border rounded-lg p-4 flex items-center justify-between hover:border-primary/50 transition-all"
+                >
+                  <div>
+                    <p className="font-semibold text-foreground">Table {booking.tableNumber} • {booking.guestCount} Guests</p>
+                    <p className="text-sm text-muted-foreground">
+                      {when.toLocaleDateString()} at {when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(booking.status)}`}>
+                    {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                  </span>
+                </motion.div>
+              );
+            })}
           </div>
+        </motion.div>
+      )}
+
+      {/* Empty State */}
+      {!loading && bookings.length === 0 && !error && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center py-16 space-y-4"
+        >
+          <div className="text-6xl">📅</div>
+          <h2 className="text-2xl font-bold text-foreground">No bookings yet</h2>
+          <p className="text-muted-foreground">Reserve a table for your next visit!</p>
         </motion.div>
       )}
     </div>

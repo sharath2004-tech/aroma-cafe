@@ -11,7 +11,7 @@ const RECAPTCHA_CONTAINER_ID = 'recaptcha-container';
 
 interface PhoneAuthFormProps {
   // Extra fields sent to /auth/sync on first sign-in (register flow).
-  syncPayload?: { name?: string; role?: string };
+  syncPayload?: { name?: string };
   // Called before sending the OTP; return an error message to abort (e.g. missing name).
   validateBeforeSend?: () => string | null;
 }

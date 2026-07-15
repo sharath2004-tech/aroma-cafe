@@ -1,29 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { useMenuStore } from '@/lib/store';
 import { formatINR } from '@/lib/utils';
-
-interface MenuItem {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-  description: string;
-  available: boolean;
-  preparationTime: number;
-}
+import type { MenuItem } from '@/lib/types';
 
 export default function MenuManagementPage() {
-  const [items, setItems] = useState<MenuItem[]>([
-    { id: '1', name: 'Espresso', price: 120, category: 'Coffee', description: 'Rich and bold', available: true, preparationTime: 1 },
-    { id: '2', name: 'Cappuccino', price: 180, category: 'Coffee', description: 'Smooth and creamy', available: true, preparationTime: 3 },
-    { id: '3', name: 'Croissant', price: 150, category: 'Pastries', description: 'Buttery and flaky', available: true, preparationTime: 2 },
-    { id: '4', name: 'Club Sandwich', price: 280, category: 'Sandwiches', description: 'Premium ingredients', available: false, preparationTime: 5 },
-  ]);
+  const { items, loading, error, fetchItems, addItem, updateItem, deleteItem } = useMenuStore();
 
   const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -33,37 +21,36 @@ export default function MenuManagementPage() {
     preparationTime: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
 
-    if (editingId) {
-      setItems(items.map(item =>
-        item.id === editingId
-          ? {
-              ...item,
-              name: formData.name,
-              price: parseFloat(formData.price),
-              category: formData.category,
-              description: formData.description,
-              preparationTime: parseInt(formData.preparationTime),
-            }
-          : item
-      ));
-      setEditingId(null);
-    } else {
-      setItems([...items, {
-        id: `${items.length + 1}`,
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const payload = {
         name: formData.name,
         price: parseFloat(formData.price),
         category: formData.category,
         description: formData.description,
-        available: true,
         preparationTime: parseInt(formData.preparationTime),
-      }]);
-    }
+      };
 
-    setFormData({ name: '', price: '', category: 'Coffee', description: '', preparationTime: '' });
-    setShowForm(false);
+      if (editingId) {
+        await updateItem(editingId, payload);
+        setEditingId(null);
+      } else {
+        await addItem({ ...payload, available: true });
+      }
+
+      setFormData({ name: '', price: '', category: 'Coffee', description: '', preparationTime: '' });
+      setShowForm(false);
+    } catch {
+      // store surfaces the error message
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleEdit = (item: MenuItem) => {
@@ -78,16 +65,14 @@ export default function MenuManagementPage() {
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure?')) {
-      setItems(items.filter(item => item.id !== id));
+  const handleDelete = async (id: string) => {
+    if (confirm('Are you sure? This removes the item for all customers.')) {
+      await deleteItem(id).catch(() => {});
     }
   };
 
-  const toggleAvailability = (id: string) => {
-    setItems(items.map(item =>
-      item.id === id ? { ...item, available: !item.available } : item
-    ));
+  const toggleAvailability = async (item: MenuItem) => {
+    await updateItem(item.id, { available: !item.available }).catch(() => {});
   };
 
   const categories = Array.from(new Set(items.map(item => item.category)));
@@ -117,6 +102,12 @@ export default function MenuManagementPage() {
         </Button>
       </motion.div>
 
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
       {/* Add/Edit Form */}
       <AnimatePresence>
         {showForm && (
@@ -145,11 +136,12 @@ export default function MenuManagementPage() {
                   <input
                     type="number"
                     required
+                    min="0"
                     step="0.01"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="4.50"
+                    placeholder="180"
                   />
                 </div>
 
@@ -173,6 +165,7 @@ export default function MenuManagementPage() {
                   <input
                     type="number"
                     required
+                    min="1"
                     value={formData.preparationTime}
                     onChange={(e) => setFormData({ ...formData, preparationTime: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -195,14 +188,35 @@ export default function MenuManagementPage() {
 
               <Button
                 type="submit"
+                disabled={submitting}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3"
               >
-                {editingId ? 'Update Item' : 'Add Item'}
+                {submitting ? 'Saving...' : editingId ? 'Update Item' : 'Add Item'}
               </Button>
             </form>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Loading */}
+      {loading && items.length === 0 && (
+        <div className="bg-card border border-border rounded-2xl p-12 text-center text-muted-foreground">
+          Loading menu items...
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && items.length === 0 && !error && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center py-16 space-y-4"
+        >
+          <div className="text-6xl">🍽️</div>
+          <h2 className="text-2xl font-bold text-foreground">No menu items yet</h2>
+          <p className="text-muted-foreground">Click &quot;+ Add Item&quot; to create your first menu item — it will appear instantly for customers.</p>
+        </motion.div>
+      )}
 
       {/* Items by Category */}
       {categories.map((category, catIndex) => (
@@ -244,7 +258,7 @@ export default function MenuManagementPage() {
 
                 <div className="flex gap-2 pt-2">
                   <Button
-                    onClick={() => toggleAvailability(item.id)}
+                    onClick={() => toggleAvailability(item)}
                     variant="outline"
                     size="sm"
                     className="flex-1"

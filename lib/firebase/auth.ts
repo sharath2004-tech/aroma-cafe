@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   RecaptchaVerifier,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
@@ -63,6 +64,10 @@ export const confirmPhoneOtp = async (confirmation: ConfirmationResult, code: st
   const credential = await confirmation.confirm(code);
   return credential.user;
 };
+
+// Sends Firebase's password-reset email; the reset page itself is hosted by Firebase.
+export const sendPasswordReset = (email: string): Promise<void> =>
+  sendPasswordResetEmail(getFirebaseAuth(), email);
 
 export const signOutUser = (): Promise<void> => signOut(getFirebaseAuth());
 

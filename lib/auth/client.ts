@@ -38,9 +38,10 @@ apiClient.interceptors.response.use(
   }
 );
 
+// Role is never sent by the client — the backend assigns it (admin emails
+// become admins, everyone else is a customer; admins promote chefs).
 export interface SyncPayload {
   name?: string;
-  role?: 'customer' | 'chef' | 'admin';
 }
 
 export interface AuthResponse {

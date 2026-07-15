@@ -1,77 +1,14 @@
 'use client';
 
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { useOrderStore } from '@/lib/store';
 import { formatINR } from '@/lib/utils';
+import type { PreOrder } from '@/lib/types';
 
-interface OrderItem {
-  name: string;
-  quantity: number;
-  price: number;
-  icon: string;
-}
-
-interface Order {
-  id: string;
-  items: OrderItem[];
-  total: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed';
-  readyTime: Date;
-  createdAt: Date;
-  estimatedTime: number;
-}
-
-const MOCK_ORDERS: Order[] = [
-  {
-    id: '#1250',
-    items: [
-      { name: 'Cappuccino', quantity: 2, price: 180, icon: '☕' },
-      { name: 'Croissant', quantity: 1, price: 150, icon: '🥐' },
-    ],
-    total: 510,
-    status: 'ready',
-    readyTime: new Date(Date.now() + 5 * 60000),
-    createdAt: new Date(Date.now() - 10 * 60000),
-    estimatedTime: 15,
-  },
-  {
-    id: '#1249',
-    items: [
-      { name: 'Latte', quantity: 1, price: 200, icon: '☕' },
-      { name: 'Club Sandwich', quantity: 1, price: 280, icon: '🥪' },
-    ],
-    total: 480,
-    status: 'preparing',
-    readyTime: new Date(Date.now() + 8 * 60000),
-    createdAt: new Date(Date.now() - 2 * 60000),
-    estimatedTime: 10,
-  },
-  {
-    id: '#1248',
-    items: [
-      { name: 'Americano', quantity: 1, price: 150, icon: '☕' },
-      { name: 'Donut', quantity: 2, price: 90, icon: '🍩' },
-    ],
-    total: 330,
-    status: 'completed',
-    readyTime: new Date(Date.now() - 2 * 3600000),
-    createdAt: new Date(Date.now() - 2.5 * 3600000),
-    estimatedTime: 5,
-  },
-  {
-    id: '#1247',
-    items: [
-      { name: 'Mocha', quantity: 1, price: 210, icon: '☕' },
-      { name: 'Danish', quantity: 1, price: 140, icon: '🥐' },
-    ],
-    total: 350,
-    status: 'completed',
-    readyTime: new Date(Date.now() - 24 * 3600000),
-    createdAt: new Date(Date.now() - 24.5 * 3600000),
-    estimatedTime: 8,
-  },
-];
+const ACTIVE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready'];
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -83,8 +20,9 @@ const getStatusColor = (status: string) => {
       return { bg: 'bg-orange-100', text: 'text-orange-800', badge: 'bg-orange-100 text-orange-700' };
     case 'ready':
       return { bg: 'bg-green-100', text: 'text-green-800', badge: 'bg-green-100 text-green-700' };
+    case 'cancelled':
+      return { bg: 'bg-red-100', text: 'text-red-800', badge: 'bg-red-100 text-red-700' };
     case 'completed':
-      return { bg: 'bg-gray-100', text: 'text-gray-800', badge: 'bg-gray-100 text-gray-700' };
     default:
       return { bg: 'bg-gray-100', text: 'text-gray-800', badge: 'bg-gray-100 text-gray-700' };
   }
@@ -102,14 +40,24 @@ const getStatusIcon = (status: string) => {
       return '🔔';
     case 'completed':
       return '✅';
+    case 'cancelled':
+      return '✖️';
     default:
       return '?';
   }
 };
 
+const shortId = (id: string) => `#${id.slice(-6).toUpperCase()}`;
+
 export default function OrdersPage() {
-  const activeOrders = MOCK_ORDERS.filter(o => o.status !== 'completed');
-  const completedOrders = MOCK_ORDERS.filter(o => o.status === 'completed');
+  const { orders, loading, error, fetchOrders, cancelOrder } = useOrderStore();
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  const activeOrders = orders.filter((o) => ACTIVE_STATUSES.includes(o.status));
+  const pastOrders = orders.filter((o) => !ACTIVE_STATUSES.includes(o.status));
 
   return (
     <div className="p-8 space-y-8">
@@ -124,6 +72,18 @@ export default function OrdersPage() {
         <p className="text-lg text-muted-foreground">Track and manage your orders</p>
       </motion.div>
 
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {loading && orders.length === 0 && (
+        <div className="bg-card border border-border rounded-2xl p-12 text-center text-muted-foreground">
+          Loading your orders...
+        </div>
+      )}
+
       {/* Active Orders */}
       {activeOrders.length > 0 && (
         <motion.div
@@ -133,8 +93,9 @@ export default function OrdersPage() {
           className="space-y-4"
         >
           <h2 className="text-2xl font-bold text-foreground">Active Orders</h2>
-          {activeOrders.map((order, index) => {
+          {activeOrders.map((order: PreOrder, index: number) => {
             const colors = getStatusColor(order.status);
+            const createdAt = new Date(order.createdAt);
             return (
               <motion.div
                 key={order.id}
@@ -148,14 +109,14 @@ export default function OrdersPage() {
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{getStatusIcon(order.status)}</span>
                     <div>
-                      <p className={`font-bold ${colors.text}`}>Order {order.id}</p>
+                      <p className={`font-bold ${colors.text}`}>Order {shortId(order.id)}</p>
                       <p className={`text-sm ${colors.text} opacity-75`}>
                         {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                       </p>
                     </div>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm font-semibold ${colors.badge}`}>
-                    {order.status === 'ready' ? 'Ready for Pickup' : `Ready in ~${order.estimatedTime} min`}
+                    {order.status === 'ready' ? 'Ready for Pickup' : 'In Progress'}
                   </span>
                 </div>
 
@@ -167,8 +128,7 @@ export default function OrdersPage() {
                     {order.items.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between text-sm">
                         <span className="text-foreground">
-                          <span className="text-lg mr-2">{item.icon}</span>
-                          {item.name} x {item.quantity}
+                          {item.menuItem.name} x {item.quantity}
                         </span>
                         <span className="text-muted-foreground">{formatINR(item.price * item.quantity)}</span>
                       </div>
@@ -178,7 +138,7 @@ export default function OrdersPage() {
                   {/* Total */}
                   <div className="border-t border-border pt-3 flex justify-between font-bold">
                     <span className="text-foreground">Total</span>
-                    <span className="text-primary text-lg">{formatINR(order.total)}</span>
+                    <span className="text-primary text-lg">{formatINR(order.totalPrice)}</span>
                   </div>
 
                   {/* Status Progress */}
@@ -186,7 +146,7 @@ export default function OrdersPage() {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold text-muted-foreground">PROGRESS</span>
                       <span className="text-xs text-muted-foreground">
-                        Ordered at {order.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        Ordered at {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
@@ -212,6 +172,16 @@ export default function OrdersPage() {
                       </p>
                     </div>
                   )}
+                  {order.status === 'pending' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => cancelOrder(order.id)}
+                    >
+                      Cancel Order
+                    </Button>
+                  )}
                 </div>
               </motion.div>
             );
@@ -219,8 +189,8 @@ export default function OrdersPage() {
         </motion.div>
       )}
 
-      {/* Completed Orders */}
-      {completedOrders.length > 0 && (
+      {/* Past Orders */}
+      {pastOrders.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -229,7 +199,7 @@ export default function OrdersPage() {
         >
           <h2 className="text-2xl font-bold text-foreground">Past Orders</h2>
           <div className="space-y-3">
-            {completedOrders.map((order, index) => (
+            {pastOrders.map((order: PreOrder, index: number) => (
               <motion.div
                 key={order.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -238,14 +208,14 @@ export default function OrdersPage() {
                 className="bg-card border border-border rounded-lg p-4 flex items-center justify-between hover:border-primary/50 transition-all"
               >
                 <div>
-                  <p className="font-semibold text-foreground">Order {order.id}</p>
+                  <p className="font-semibold text-foreground">Order {shortId(order.id)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {order.items.map(i => i.name).join(', ')} • {order.createdAt.toLocaleDateString()}
+                    {order.items.map((i) => i.menuItem.name).join(', ')} • {new Date(order.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-primary font-bold">{formatINR(order.total)}</span>
-                  <span className="text-xl">✅</span>
+                  <span className="text-primary font-bold">{formatINR(order.totalPrice)}</span>
+                  <span className="text-xl">{getStatusIcon(order.status)}</span>
                 </div>
               </motion.div>
             ))}
@@ -254,7 +224,7 @@ export default function OrdersPage() {
       )}
 
       {/* Empty State */}
-      {MOCK_ORDERS.length === 0 && (
+      {!loading && orders.length === 0 && !error && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}

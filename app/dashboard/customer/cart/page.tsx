@@ -82,7 +82,9 @@ export default function CartPage() {
               className="bg-card border border-border rounded-xl p-6 flex items-center justify-between gap-4"
             >
               <div className="flex items-center gap-4 flex-1">
-                <span className="text-4xl">{item.menuItem.icon}</span>
+                <span className="text-4xl">
+                  {{ Coffee: '☕', Pastries: '🥐', Sandwiches: '🥪', Desserts: '🍰', Beverages: '🥤' }[item.menuItem.category] ?? '🍽️'}
+                </span>
                 <div className="flex-1">
                   <h3 className="font-bold text-foreground">{item.menuItem.name}</h3>
                   <p className="text-sm text-muted-foreground">{formatINR(item.price)} each</p>
