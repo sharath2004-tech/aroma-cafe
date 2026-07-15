@@ -48,7 +48,7 @@ A modern, full-featured cafe management web application built with Next.js 16, R
 - Express.js (`server.js`, `routes/`, `controllers/`, `models/`, `middleware/`)
 - MongoDB with Mongoose
 - Socket.io for real-time updates
-- JWT authentication with bcrypt, role-based access control
+- Firebase Authentication (email/password + Google) with Firebase Admin token verification, role-based access control
 - Cloudinary image uploads
 - API client with Axios interceptors
 
@@ -118,7 +118,6 @@ cp .env.example .env
 
 ```env
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/aroma-cafe
-JWT_SECRET=your_jwt_secret_key_here
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
@@ -126,7 +125,28 @@ PORT=5000
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
+
+# Firebase Admin (backend) — Firebase Console > Project settings > Service accounts
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-firebase-project-id.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+# Firebase client SDK (frontend) — Firebase Console > Project settings > General > Web app
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-firebase-project-id.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-firebase-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-firebase-project-id.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
 ```
+
+### Firebase Setup
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+2. **Authentication** → **Sign-in method** → enable **Email/Password** and **Google**.
+3. **Project settings** → **General** → **Your apps** → add a **Web app** → copy the `firebaseConfig` values into the `NEXT_PUBLIC_FIREBASE_*` variables above.
+4. **Project settings** → **Service accounts** → **Generate new private key** → downloads a JSON file with `project_id`, `client_email`, and `private_key` → map those to `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`.
+5. **Authentication** → **Settings** → **Authorized domains** → add your Vercel domain(s) (`localhost` is allowed by default) so sign-in popups work in production.
 
 ## Usage
 
@@ -191,11 +211,10 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ## API Reference
 
 ```typescript
-// Authentication
-POST /api/auth/register
-POST /api/auth/login
+// Authentication (sign-up/sign-in happen client-side via the Firebase SDK;
+// these endpoints sync the resulting Firebase user with the Mongo profile)
+POST /api/auth/sync     (Firebase ID token required — creates the profile on first sign-in)
 GET  /api/auth/me       (auth required)
-POST /api/auth/logout   (auth required)
 
 // Menu
 GET    /api/menu
@@ -261,7 +280,9 @@ The frontend (Next.js) deploys to **Vercel**; the backend (Express/Socket.io/Mon
 2. In Render: **New → Blueprint**, point it at the repo — it will pick up `render.yaml` and create the `aroma-cafe-api` web service automatically. (Or **New → Web Service** manually with Build Command `npm install`, Start Command `npm run server`.)
 3. In the service's Environment tab, set the secrets Render didn't auto-generate:
    - `MONGODB_URI`
-   - `JWT_SECRET`
+   - `FIREBASE_PROJECT_ID`
+   - `FIREBASE_CLIENT_EMAIL`
+   - `FIREBASE_PRIVATE_KEY` — paste the full key including `-----BEGIN/END PRIVATE KEY-----`; Render's env editor preserves real newlines, so paste it as-is (multiline is fine — `config/firebaseAdmin.js` also tolerates literal `\n` if your editor collapses it to one line)
    - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
    - `CORS_ORIGIN` — your Vercel domain(s), comma-separated (e.g. `https://aroma-cafe.vercel.app,https://your-custom-domain.com`)
 4. Render assigns `PORT` automatically; leave `PORT` unset in the dashboard.
@@ -272,10 +293,19 @@ Note: Render's free tier spins the service down when idle, so the first request 
 ### Frontend on Vercel
 
 1. Import the same repo in Vercel — it auto-detects Next.js, no config needed.
-2. Set the project's environment variable:
+2. Set the project's environment variables (Project Settings → Environment Variables):
    - `NEXT_PUBLIC_API_URL` = `https://<your-render-service>.onrender.com/api`
+   - `NEXT_PUBLIC_FIREBASE_API_KEY`
+   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+   - `NEXT_PUBLIC_FIREBASE_APP_ID`
+
+   These are all safe to expose to the browser (that's what `NEXT_PUBLIC_` means, and it's how every Firebase web app ships) — the private key stays server-side, only on Render.
 3. Deploy. Vercel builds and hosts the frontend only — `server.js` and everything under `routes/`, `controllers/`, `models/`, `middleware/` are unused at runtime on Vercel (they're only needed by Render) but harmless to ship.
 4. Once both are live, update `CORS_ORIGIN` on Render to match the final Vercel URL (and redeploy the backend) so the browser isn't blocked by CORS.
+5. Add the final Vercel domain to Firebase **Authentication → Settings → Authorized domains**, or Google sign-in popups will fail with `auth/unauthorized-domain`.
 
 ## License
 

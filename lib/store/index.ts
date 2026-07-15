@@ -1,18 +1,20 @@
 import { create } from 'zustand';
 import { authApi, bookingApi, menuApi, orderApi } from '../auth/client';
+import { signInWithEmail, signInWithGoogle, signOutUser, signUpWithEmail, subscribeToAuthChanges } from '../firebase/auth';
 import type { User, CartItem, MenuItem, PreOrder, OrderNotification, TableBooking } from '../types';
 
 interface AuthStore {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
+  isInitializing: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, role: string) => Promise<void>;
-  logout: () => void;
+  loginWithGoogle: (role?: string) => Promise<void>;
+  logout: () => Promise<void>;
   setUser: (user: User | null) => void;
-  setToken: (token: string | null) => void;
   setError: (error: string | null) => void;
+  initialize: () => () => void;
 }
 
 interface CartStore {
@@ -120,16 +122,16 @@ function mapBookingResponse(booking: any): TableBooking {
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
-  token: null,
   isLoading: false,
+  isInitializing: true,
   error: null,
-  
+
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { user, token } = await authApi.login({ email, password });
-      if (typeof window !== 'undefined') localStorage.setItem('auth_token', token);
-      set({ user, token, isLoading: false });
+      await signInWithEmail(email, password);
+      const { user } = await authApi.sync();
+      set({ user, isLoading: false });
     } catch (error: any) {
       set({ error: error?.response?.data?.message ?? (error as Error).message, isLoading: false });
       throw error;
@@ -139,29 +141,54 @@ export const useAuthStore = create<AuthStore>((set) => ({
   register: async (name: string, email: string, password: string, role: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { user, token } = await authApi.register({
-        name,
-        email,
-        password,
-        role: role as 'customer' | 'chef' | 'admin'
-      });
-      if (typeof window !== 'undefined') localStorage.setItem('auth_token', token);
-      set({ user, token, isLoading: false });
+      await signUpWithEmail(name, email, password);
+      const { user } = await authApi.sync({ name, role: role as 'customer' | 'chef' | 'admin' });
+      set({ user, isLoading: false });
     } catch (error: any) {
       set({ error: error?.response?.data?.message ?? (error as Error).message, isLoading: false });
       throw error;
     }
   },
 
-  logout: () => {
-    if (typeof window !== 'undefined') localStorage.removeItem('auth_token');
-    authApi.logout().catch(() => {});
-    set({ user: null, token: null });
+  loginWithGoogle: async (role?: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const firebaseUser = await signInWithGoogle();
+      const { user } = await authApi.sync({
+        name: firebaseUser.displayName ?? undefined,
+        role: role as 'customer' | 'chef' | 'admin' | undefined
+      });
+      set({ user, isLoading: false });
+    } catch (error: any) {
+      set({ error: error?.response?.data?.message ?? (error as Error).message, isLoading: false });
+      throw error;
+    }
   },
-  
+
+  logout: async () => {
+    await signOutUser();
+    set({ user: null });
+  },
+
   setUser: (user) => set({ user }),
-  setToken: (token) => set({ token }),
   setError: (error) => set({ error }),
+
+  // Restores the session on page load/refresh. Firebase persists its own
+  // session; once it reports a user we fetch the matching Mongo profile.
+  initialize: () => {
+    return subscribeToAuthChanges(async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const { user } = await authApi.getCurrentUser();
+          set({ user, isInitializing: false });
+        } catch {
+          set({ user: null, isInitializing: false });
+        }
+      } else {
+        set({ user: null, isInitializing: false });
+      }
+    });
+  },
 }));
 
 export const useCartStore = create<CartStore>((set, get) => ({

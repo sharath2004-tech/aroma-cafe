@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { auth } from '../firebase/client';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -9,11 +10,12 @@ const apiClient = axios.create({
   },
 });
 
-// Add token to requests
-apiClient.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Attach the current Firebase ID token to every request.
+apiClient.interceptors.request.use(async (config) => {
+  const firebaseUser = auth.currentUser;
+  if (firebaseUser) {
+    const idToken = await firebaseUser.getIdToken();
+    config.headers.Authorization = `Bearer ${idToken}`;
   }
   return config;
 });
@@ -23,9 +25,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
         window.location.href = '/auth/login';
       }
     }
@@ -33,39 +33,24 @@ apiClient.interceptors.response.use(
   }
 );
 
-export interface LoginPayload {
-  email: string;
-  password: string;
-}
-
-export interface RegisterPayload {
-  name: string;
-  email: string;
-  password: string;
-  role: 'customer' | 'chef' | 'admin';
+export interface SyncPayload {
+  name?: string;
+  role?: 'customer' | 'chef' | 'admin';
 }
 
 export interface AuthResponse {
   user: any;
-  token: string;
 }
 
 export const authApi = {
-  login: async (payload: LoginPayload): Promise<AuthResponse> => {
-    const response = await apiClient.post('/auth/login', payload);
+  // Idempotent: creates the Mongo profile on first Firebase sign-in, otherwise
+  // just returns the existing one. Call after every successful Firebase auth action.
+  sync: async (payload: SyncPayload = {}): Promise<AuthResponse> => {
+    const response = await apiClient.post('/auth/sync', payload);
     return response.data;
   },
 
-  register: async (payload: RegisterPayload): Promise<AuthResponse> => {
-    const response = await apiClient.post('/auth/register', payload);
-    return response.data;
-  },
-
-  logout: async (): Promise<void> => {
-    await apiClient.post('/auth/logout');
-  },
-
-  getCurrentUser: async () => {
+  getCurrentUser: async (): Promise<AuthResponse> => {
     const response = await apiClient.get('/auth/me');
     return response.data;
   },

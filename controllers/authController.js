@@ -1,61 +1,42 @@
-import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 const ALLOWED_ROLES = ['customer', 'chef', 'admin'];
 
-const generateToken = (user) => {
-  return jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-};
+const toPublicUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  role: user.role,
+  avatar: user.avatar,
+  createdAt: user.createdAt
+});
 
-export const register = async (req, res) => {
+// Called right after any successful Firebase sign-in (email/password, Google, phone OTP, ...).
+// Creates the Mongo profile on first sign-in; returns the existing one otherwise.
+// Role is only honored on creation so a returning user can't re-elevate themselves.
+export const sync = async (req, res) => {
   try {
-    const { name, email, password, phone, role } = req.body;
+    const { uid, email, name: tokenName, picture, phone_number: phoneNumber } = req.firebaseUser;
+    const { name, role } = req.body;
 
-    const existing = await User.findOne({ email });
-    if (existing) {
-      return res.status(400).json({ message: '❌ User already exists' });
-    }
+    let user = await User.findOne({ firebaseUid: uid });
 
-    const user = new User({
-      name,
-      email,
-      password,
-      phone,
-      role: ALLOWED_ROLES.includes(role) ? role : 'customer'
-    });
-    await user.save();
-
-    const token = generateToken(user);
-    res.status(201).json({
-      message: '✅ User registered successfully',
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
-    });
-  } catch (error) {
-    res.status(500).json({ message: '❌ Server error', error: error.message });
-  }
-};
-
-export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: '❌ Invalid credentials' });
+      user = await User.create({
+        firebaseUid: uid,
+        name: name || tokenName || email?.split('@')[0] || (phoneNumber ? `User ${phoneNumber.slice(-4)}` : 'User'),
+        email,
+        phone: phoneNumber,
+        avatar: picture,
+        role: ALLOWED_ROLES.includes(role) ? role : 'customer'
+      });
+    } else if (!user.phone && phoneNumber) {
+      user.phone = phoneNumber;
+      await user.save();
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ message: '❌ Invalid credentials' });
-    }
-
-    const token = generateToken(user);
-    res.json({
-      message: '✅ Logged in successfully',
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
-    });
+    res.json({ message: '✅ Synced', user: toPublicUser(user) });
   } catch (error) {
     res.status(500).json({ message: '❌ Server error', error: error.message });
   }
@@ -63,17 +44,61 @@ export const login = async (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
+    const user = await User.findById(req.user.userId);
     if (!user) {
       return res.status(404).json({ message: '❌ User not found' });
     }
-    res.json({ user });
+    res.json({ user: toPublicUser(user) });
   } catch (error) {
     res.status(500).json({ message: '❌ Server error', error: error.message });
   }
 };
 
-export const logout = async (req, res) => {
-  // JWTs are stateless; logout is handled client-side by discarding the token.
-  res.json({ message: '✅ Logged out successfully' });
+export const updateMe = async (req, res) => {
+  try {
+    const { name, phone, avatar } = req.body;
+    const updates = {};
+    if (typeof name === 'string' && name.trim()) updates.name = name.trim();
+    if (typeof phone === 'string') updates.phone = phone.trim() || undefined;
+    if (typeof avatar === 'string') updates.avatar = avatar;
+
+    const user = await User.findByIdAndUpdate(req.user.userId, updates, { new: true });
+    if (!user) {
+      return res.status(404).json({ message: '❌ User not found' });
+    }
+    res.json({ message: '✅ Profile updated', user: toPublicUser(user) });
+  } catch (error) {
+    res.status(500).json({ message: '❌ Server error', error: error.message });
+  }
+};
+
+// Admin only
+export const listUsers = async (req, res) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 });
+    res.json({ users: users.map(toPublicUser) });
+  } catch (error) {
+    res.status(500).json({ message: '❌ Server error', error: error.message });
+  }
+};
+
+// Admin only
+export const updateUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ message: '❌ Invalid role' });
+    }
+    if (req.params.id === req.user.userId) {
+      return res.status(400).json({ message: '❌ You cannot change your own role' });
+    }
+
+    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
+    if (!user) {
+      return res.status(404).json({ message: '❌ User not found' });
+    }
+    res.json({ message: '✅ Role updated', user: toPublicUser(user) });
+  } catch (error) {
+    res.status(500).json({ message: '❌ Server error', error: error.message });
+  }
 };

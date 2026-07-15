@@ -15,7 +15,12 @@ import ordersRoutes from './routes/orders.js';
 
 dotenv.config();
 
-const REQUIRED_ENV_VARS = ['MONGODB_URI', 'JWT_SECRET'];
+const REQUIRED_ENV_VARS = [
+  'MONGODB_URI',
+  'FIREBASE_PROJECT_ID',
+  'FIREBASE_CLIENT_EMAIL',
+  'FIREBASE_PRIVATE_KEY'
+];
 const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
 if (missingEnvVars.length > 0) {
   console.error(`❌ Missing required environment variables: ${missingEnvVars.join(', ')}`);
