@@ -65,7 +65,10 @@ function RegisterFormContent() {
     setLocalError('');
     try {
       await loginWithGoogle(formData.role);
-      router.push(`/dashboard/${formData.role}`);
+      // The chosen role only applies to brand-new accounts; an existing
+      // account keeps its stored role, so redirect from the actual profile.
+      const role = useAuthStore.getState().user?.role ?? formData.role;
+      router.push(`/dashboard/${role}`);
     } catch (err) {
       setLocalError('Google sign-in failed. Please try again.');
     }

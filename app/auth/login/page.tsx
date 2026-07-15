@@ -28,8 +28,9 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // After successful login, redirect based on role
-      router.push('/dashboard/customer');
+      // Redirect to the dashboard matching the signed-in user's role
+      const role = useAuthStore.getState().user?.role ?? 'customer';
+      router.push(`/dashboard/${role}`);
     } catch (err) {
       setLocalError('Invalid email or password');
     }
@@ -39,7 +40,8 @@ export default function LoginPage() {
     setLocalError('');
     try {
       await loginWithGoogle();
-      router.push('/dashboard/customer');
+      const role = useAuthStore.getState().user?.role ?? 'customer';
+      router.push(`/dashboard/${role}`);
     } catch (err) {
       setLocalError('Google sign-in failed. Please try again.');
     }
