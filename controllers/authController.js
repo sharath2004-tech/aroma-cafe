@@ -23,14 +23,20 @@ export const sync = async (req, res) => {
     let user = await User.findOne({ firebaseUid: uid });
 
     if (!user) {
-      user = await User.create({
-        firebaseUid: uid,
-        name: name || tokenName || email?.split('@')[0] || (phoneNumber ? `User ${phoneNumber.slice(-4)}` : 'User'),
-        email,
-        phone: phoneNumber,
-        avatar: picture,
-        role: ALLOWED_ROLES.includes(role) ? role : 'customer'
-      });
+      try {
+        user = await User.create({
+          firebaseUid: uid,
+          name: name || tokenName || email?.split('@')[0] || (phoneNumber ? `User ${phoneNumber.slice(-4)}` : 'User'),
+          email,
+          phone: phoneNumber,
+          avatar: picture,
+          role: ALLOWED_ROLES.includes(role) ? role : 'customer'
+        });
+      } catch (createError) {
+        // Two syncs can race on first sign-in; if the other one won, use its result.
+        if (createError.code !== 11000) throw createError;
+        user = await User.findOne({ firebaseUid: uid });
+      }
     } else if (!user.phone && phoneNumber) {
       user.phone = phoneNumber;
       await user.save();

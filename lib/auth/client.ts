@@ -20,12 +20,17 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Handle errors
+// Handle errors. A 401 normally means the session is gone, so we send the user
+// to the login page — but never for the auth endpoints themselves (/auth/sync
+// runs BEFORE the profile exists on first sign-in, and /auth/me can race it),
+// and never while already on an auth page, or sign-up flows get reloaded mid-flight.
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
+    const requestUrl: string = error.config?.url ?? '';
+    const isAuthEndpoint = requestUrl.includes('/auth/');
+    if (error.response?.status === 401 && !isAuthEndpoint && typeof window !== 'undefined') {
+      if (!window.location.pathname.startsWith('/auth')) {
         window.location.href = '/auth/login';
       }
     }

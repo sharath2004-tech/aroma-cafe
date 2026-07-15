@@ -126,7 +126,7 @@ function mapBookingResponse(booking: any): TableBooking {
   };
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   isLoading: false,
   isInitializing: true,
@@ -206,12 +206,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
   setError: (error) => set({ error }),
 
   // Restores the session on page load/refresh. Firebase persists its own
-  // session; once it reports a user we fetch the matching Mongo profile.
+  // session; once it reports a user we sync/fetch the matching Mongo profile.
   initialize: () => {
     return subscribeToAuthChanges(async (firebaseUser) => {
+      // An interactive login/register is mid-flight; it will sync (with the
+      // chosen name/role) and set the user itself — don't race it here.
+      if (get().isLoading) {
+        set({ isInitializing: false });
+        return;
+      }
       if (firebaseUser) {
         try {
-          const { user } = await authApi.getCurrentUser();
+          const { user } = await authApi.sync();
           set({ user, isInitializing: false });
         } catch {
           set({ user: null, isInitializing: false });
