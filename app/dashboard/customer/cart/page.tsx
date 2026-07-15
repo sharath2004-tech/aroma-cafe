@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/lib/store';
+import { formatINR } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
 export default function CartPage() {
@@ -84,7 +85,7 @@ export default function CartPage() {
                 <span className="text-4xl">{item.menuItem.icon}</span>
                 <div className="flex-1">
                   <h3 className="font-bold text-foreground">{item.menuItem.name}</h3>
-                  <p className="text-sm text-muted-foreground">${item.price.toFixed(2)} each</p>
+                  <p className="text-sm text-muted-foreground">{formatINR(item.price)} each</p>
                 </div>
               </div>
 
@@ -105,7 +106,7 @@ export default function CartPage() {
               </div>
 
               <div className="text-right">
-                <p className="text-xl font-bold text-primary">${(item.price * item.quantity).toFixed(2)}</p>
+                <p className="text-xl font-bold text-primary">{formatINR(item.price * item.quantity)}</p>
                 <button
                   onClick={() => removeItem(item.id)}
                   className="text-xs text-destructive hover:underline mt-1"
@@ -157,15 +158,15 @@ export default function CartPage() {
             <div className="space-y-3 border-t border-border pt-6">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span className="text-foreground font-medium">${getTotalPrice().toFixed(2)}</span>
+                <span className="text-foreground font-medium">{formatINR(getTotalPrice())}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Tax (10%)</span>
-                <span className="text-foreground font-medium">${(getTotalPrice() * 0.1).toFixed(2)}</span>
+                <span className="text-muted-foreground">GST (5%)</span>
+                <span className="text-foreground font-medium">{formatINR(getTotalPrice() * 0.05)}</span>
               </div>
               <div className="flex justify-between text-lg font-bold border-t border-border pt-3">
                 <span className="text-foreground">Total</span>
-                <span className="text-primary">${(getTotalPrice() * 1.1).toFixed(2)}</span>
+                <span className="text-primary">{formatINR(getTotalPrice() * 1.05)}</span>
               </div>
             </div>
 

@@ -220,12 +220,12 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { name: 'Espresso', price: '$2.50', desc: 'Rich and bold' },
-              { name: 'Cappuccino', price: '$4.00', desc: 'Smooth and creamy' },
-              { name: 'Latte', price: '$4.50', desc: 'Silky milk foam' },
-              { name: 'Croissant', price: '$3.50', desc: 'Buttery and flaky' },
-              { name: 'Pastries', price: '$2.00', desc: 'Fresh daily' },
-              { name: 'Sandwich', price: '$7.50', desc: 'Premium ingredients' },
+              { name: 'Espresso', price: '₹120', desc: 'Rich and bold' },
+              { name: 'Cappuccino', price: '₹180', desc: 'Smooth and creamy' },
+              { name: 'Latte', price: '₹200', desc: 'Silky milk foam' },
+              { name: 'Croissant', price: '₹150', desc: 'Buttery and flaky' },
+              { name: 'Pastries', price: '₹90', desc: 'Fresh daily' },
+              { name: 'Sandwich', price: '₹280', desc: 'Premium ingredients' },
             ].map((item, index) => (
               <motion.div
                 key={index}

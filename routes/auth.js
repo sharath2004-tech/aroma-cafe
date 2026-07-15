@@ -1,7 +1,8 @@
 import express from 'express';
 import * as authController from '../controllers/authController.js';
-import authMiddleware, { requireRole } from '../middleware/auth.js';
+import authMiddleware from '../middleware/auth.js';
 import verifyFirebaseToken from '../middleware/firebaseToken.js';
+import requireRole from '../middleware/role.js';
 
 const router = express.Router();
 

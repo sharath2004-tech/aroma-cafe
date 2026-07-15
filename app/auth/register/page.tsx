@@ -6,15 +6,17 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { PhoneAuthForm } from '@/components/auth/PhoneAuthForm';
 import { useAuthStore } from '@/lib/store';
 
 function RegisterFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { register, loginWithGoogle, isLoading, error, setError } = useAuthStore();
-  
+
   const defaultRole = (searchParams.get('role') || 'customer') as 'customer' | 'chef' | 'admin';
-  
+
+  const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -90,7 +92,62 @@ function RegisterFormContent() {
           <p className="text-muted-foreground mt-2">Create your account to get started</p>
         </div>
 
-        {/* Form */}
+        {/* Method toggle */}
+        <div className="grid grid-cols-2 gap-1 bg-muted/50 p-1 rounded-lg">
+          {(['email', 'phone'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setMethod(m); setLocalError(''); setError(null); }}
+              className={`py-2 rounded-md text-sm font-medium transition-all ${
+                method === m
+                  ? 'bg-card text-foreground shadow border border-border'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {m === 'email' ? '✉️ Email' : '📱 Phone'}
+            </button>
+          ))}
+        </div>
+
+        {/* Phone registration */}
+        {method === 'phone' && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Full Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="John Doe"
+                className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Role</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full px-4 py-2 rounded-lg bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="customer">Customer</option>
+                <option value="chef">Chef</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            <PhoneAuthForm
+              syncPayload={{ name: formData.name, role: formData.role }}
+              validateBeforeSend={() => (formData.name.trim() ? null : 'Please enter your full name first')}
+            />
+          </div>
+        )}
+
+        {/* Email form */}
+        {method === 'email' && (
         <form onSubmit={handleSubmit} className="space-y-4">
           {(localError || error) && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-2 rounded-lg text-sm">
@@ -168,6 +225,7 @@ function RegisterFormContent() {
             {isLoading ? 'Creating account...' : 'Create Account'}
           </Button>
         </form>
+        )}
 
         {/* Divider */}
         <div className="relative">

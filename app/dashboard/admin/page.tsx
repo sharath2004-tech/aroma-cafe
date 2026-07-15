@@ -37,9 +37,9 @@ export default function AdminDashboard() {
       >
         {[
           { label: 'Total Orders', value: '1,240', change: '+12.5%', icon: '📦' },
-          { label: 'Revenue', value: '$8,540', change: '+8.2%', icon: '💰' },
+          { label: 'Revenue', value: '₹85,400', change: '+8.2%', icon: '💰' },
           { label: 'Active Customers', value: '340', change: '+5.1%', icon: '👥' },
-          { label: 'Avg Order Value', value: '$28.50', change: '+3.8%', icon: '📊' },
+          { label: 'Avg Order Value', value: '₹285', change: '+3.8%', icon: '📊' },
         ].map((stat, index) => (
           <motion.div
             key={index}

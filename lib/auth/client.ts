@@ -54,6 +54,24 @@ export const authApi = {
     const response = await apiClient.get('/auth/me');
     return response.data;
   },
+
+  updateMe: async (payload: { name?: string; phone?: string; avatar?: string }): Promise<AuthResponse> => {
+    const response = await apiClient.put('/auth/me', payload);
+    return response.data;
+  },
+};
+
+// Admin-only user management
+export const userApi = {
+  getAll: async () => {
+    const response = await apiClient.get('/auth/users');
+    return response.data;
+  },
+
+  updateRole: async (id: string, role: 'customer' | 'chef' | 'admin') => {
+    const response = await apiClient.put(`/auth/users/${id}/role`, { role });
+    return response.data;
+  },
 };
 
 export const menuApi = {
@@ -85,6 +103,12 @@ export const menuApi = {
 export const orderApi = {
   getAll: async () => {
     const response = await apiClient.get('/orders');
+    return response.data;
+  },
+
+  // Admin/chef: every order in the system.
+  getAllAdmin: async () => {
+    const response = await apiClient.get('/orders/admin/all-orders');
     return response.data;
   },
 

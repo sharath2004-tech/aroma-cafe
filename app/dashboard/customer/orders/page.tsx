@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { formatINR } from '@/lib/utils';
 
 interface OrderItem {
   name: string;
@@ -25,10 +26,10 @@ const MOCK_ORDERS: Order[] = [
   {
     id: '#1250',
     items: [
-      { name: 'Cappuccino', quantity: 2, price: 4.00, icon: '☕' },
-      { name: 'Croissant', quantity: 1, price: 3.50, icon: '🥐' },
+      { name: 'Cappuccino', quantity: 2, price: 180, icon: '☕' },
+      { name: 'Croissant', quantity: 1, price: 150, icon: '🥐' },
     ],
-    total: 11.50,
+    total: 510,
     status: 'ready',
     readyTime: new Date(Date.now() + 5 * 60000),
     createdAt: new Date(Date.now() - 10 * 60000),
@@ -37,10 +38,10 @@ const MOCK_ORDERS: Order[] = [
   {
     id: '#1249',
     items: [
-      { name: 'Latte', quantity: 1, price: 4.50, icon: '☕' },
-      { name: 'Club Sandwich', quantity: 1, price: 7.50, icon: '🥪' },
+      { name: 'Latte', quantity: 1, price: 200, icon: '☕' },
+      { name: 'Club Sandwich', quantity: 1, price: 280, icon: '🥪' },
     ],
-    total: 12.00,
+    total: 480,
     status: 'preparing',
     readyTime: new Date(Date.now() + 8 * 60000),
     createdAt: new Date(Date.now() - 2 * 60000),
@@ -49,10 +50,10 @@ const MOCK_ORDERS: Order[] = [
   {
     id: '#1248',
     items: [
-      { name: 'Americano', quantity: 1, price: 3.00, icon: '☕' },
-      { name: 'Donut', quantity: 2, price: 2.50, icon: '🍩' },
+      { name: 'Americano', quantity: 1, price: 150, icon: '☕' },
+      { name: 'Donut', quantity: 2, price: 90, icon: '🍩' },
     ],
-    total: 8.00,
+    total: 330,
     status: 'completed',
     readyTime: new Date(Date.now() - 2 * 3600000),
     createdAt: new Date(Date.now() - 2.5 * 3600000),
@@ -61,10 +62,10 @@ const MOCK_ORDERS: Order[] = [
   {
     id: '#1247',
     items: [
-      { name: 'Mocha', quantity: 1, price: 4.50, icon: '☕' },
-      { name: 'Danish', quantity: 1, price: 3.00, icon: '🥐' },
+      { name: 'Mocha', quantity: 1, price: 210, icon: '☕' },
+      { name: 'Danish', quantity: 1, price: 140, icon: '🥐' },
     ],
-    total: 7.50,
+    total: 350,
     status: 'completed',
     readyTime: new Date(Date.now() - 24 * 3600000),
     createdAt: new Date(Date.now() - 24.5 * 3600000),
@@ -169,7 +170,7 @@ export default function OrdersPage() {
                           <span className="text-lg mr-2">{item.icon}</span>
                           {item.name} x {item.quantity}
                         </span>
-                        <span className="text-muted-foreground">${(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="text-muted-foreground">{formatINR(item.price * item.quantity)}</span>
                       </div>
                     ))}
                   </div>
@@ -177,7 +178,7 @@ export default function OrdersPage() {
                   {/* Total */}
                   <div className="border-t border-border pt-3 flex justify-between font-bold">
                     <span className="text-foreground">Total</span>
-                    <span className="text-primary text-lg">${order.total.toFixed(2)}</span>
+                    <span className="text-primary text-lg">{formatINR(order.total)}</span>
                   </div>
 
                   {/* Status Progress */}
@@ -243,7 +244,7 @@ export default function OrdersPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-primary font-bold">${order.total.toFixed(2)}</span>
+                  <span className="text-primary font-bold">{formatINR(order.total)}</span>
                   <span className="text-xl">✅</span>
                 </div>
               </motion.div>

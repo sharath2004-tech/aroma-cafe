@@ -90,7 +90,7 @@ export default function CustomerHome() {
       >
         {[
           { label: 'Total Orders', value: '24', icon: '📊' },
-          { label: 'Amount Spent', value: '$156.50', icon: '💰' },
+          { label: 'Amount Spent', value: '₹1,565', icon: '💰' },
           { label: 'Favorite Item', value: 'Cappuccino', icon: '⭐' },
         ].map((stat, index) => (
           <div key={index} className="bg-card border border-border rounded-2xl p-6">

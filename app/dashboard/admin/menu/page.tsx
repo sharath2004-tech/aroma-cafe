@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { formatINR } from '@/lib/utils';
 
 interface MenuItem {
   id: string;
@@ -16,10 +17,10 @@ interface MenuItem {
 
 export default function MenuManagementPage() {
   const [items, setItems] = useState<MenuItem[]>([
-    { id: '1', name: 'Espresso', price: 2.50, category: 'Coffee', description: 'Rich and bold', available: true, preparationTime: 1 },
-    { id: '2', name: 'Cappuccino', price: 4.00, category: 'Coffee', description: 'Smooth and creamy', available: true, preparationTime: 3 },
-    { id: '3', name: 'Croissant', price: 3.50, category: 'Pastries', description: 'Buttery and flaky', available: true, preparationTime: 2 },
-    { id: '4', name: 'Club Sandwich', price: 7.50, category: 'Sandwiches', description: 'Premium ingredients', available: false, preparationTime: 5 },
+    { id: '1', name: 'Espresso', price: 120, category: 'Coffee', description: 'Rich and bold', available: true, preparationTime: 1 },
+    { id: '2', name: 'Cappuccino', price: 180, category: 'Coffee', description: 'Smooth and creamy', available: true, preparationTime: 3 },
+    { id: '3', name: 'Croissant', price: 150, category: 'Pastries', description: 'Buttery and flaky', available: true, preparationTime: 2 },
+    { id: '4', name: 'Club Sandwich', price: 280, category: 'Sandwiches', description: 'Premium ingredients', available: false, preparationTime: 5 },
   ]);
 
   const [showForm, setShowForm] = useState(false);
@@ -140,7 +141,7 @@ export default function MenuManagementPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Price ($)</label>
+                  <label className="text-sm font-medium text-foreground">Price (₹)</label>
                   <input
                     type="number"
                     required
@@ -237,7 +238,7 @@ export default function MenuManagementPage() {
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Price: <span className="text-primary font-bold">${item.price.toFixed(2)}</span></span>
+                  <span className="text-muted-foreground">Price: <span className="text-primary font-bold">{formatINR(item.price)}</span></span>
                   <span className="text-muted-foreground">Prep: <span className="font-bold">{item.preparationTime}m</span></span>
                 </div>
 

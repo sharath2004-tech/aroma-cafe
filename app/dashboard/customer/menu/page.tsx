@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/lib/store';
+import { formatINR } from '@/lib/utils';
 
 interface MenuItem {
   id: string;
@@ -17,24 +18,24 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   // Beverages
-  { id: '1', name: 'Espresso', price: 2.50, category: 'Coffee', description: 'Rich and bold single shot', icon: '☕', preparationTime: 1 },
-  { id: '2', name: 'Cappuccino', price: 4.00, category: 'Coffee', description: 'Smooth and creamy', icon: '☕', preparationTime: 3 },
-  { id: '3', name: 'Latte', price: 4.50, category: 'Coffee', description: 'Silky milk foam', icon: '☕', preparationTime: 3 },
-  { id: '4', name: 'Americano', price: 3.00, category: 'Coffee', description: 'Double espresso with water', icon: '☕', preparationTime: 2 },
-  { id: '5', name: 'Macchiato', price: 3.50, category: 'Coffee', description: 'Espresso with milk foam', icon: '☕', preparationTime: 2 },
-  { id: '6', name: 'Mocha', price: 4.50, category: 'Coffee', description: 'Coffee with chocolate', icon: '☕', preparationTime: 3 },
+  { id: '1', name: 'Espresso', price: 120, category: 'Coffee', description: 'Rich and bold single shot', icon: '☕', preparationTime: 1 },
+  { id: '2', name: 'Cappuccino', price: 180, category: 'Coffee', description: 'Smooth and creamy', icon: '☕', preparationTime: 3 },
+  { id: '3', name: 'Latte', price: 200, category: 'Coffee', description: 'Silky milk foam', icon: '☕', preparationTime: 3 },
+  { id: '4', name: 'Americano', price: 150, category: 'Coffee', description: 'Double espresso with water', icon: '☕', preparationTime: 2 },
+  { id: '5', name: 'Macchiato', price: 160, category: 'Coffee', description: 'Espresso with milk foam', icon: '☕', preparationTime: 2 },
+  { id: '6', name: 'Mocha', price: 210, category: 'Coffee', description: 'Coffee with chocolate', icon: '☕', preparationTime: 3 },
   
   // Pastries
-  { id: '7', name: 'Croissant', price: 3.50, category: 'Pastries', description: 'Buttery and flaky', icon: '🥐', preparationTime: 2 },
-  { id: '8', name: 'Chocolate Pastry', price: 3.50, category: 'Pastries', description: 'Rich chocolate filling', icon: '🍫', preparationTime: 2 },
-  { id: '9', name: 'Danish', price: 3.00, category: 'Pastries', description: 'Soft and delicious', icon: '🥐', preparationTime: 2 },
-  { id: '10', name: 'Donut', price: 2.50, category: 'Pastries', description: 'Classic glazed donut', icon: '🍩', preparationTime: 1 },
+  { id: '7', name: 'Croissant', price: 150, category: 'Pastries', description: 'Buttery and flaky', icon: '🥐', preparationTime: 2 },
+  { id: '8', name: 'Chocolate Pastry', price: 160, category: 'Pastries', description: 'Rich chocolate filling', icon: '🍫', preparationTime: 2 },
+  { id: '9', name: 'Danish', price: 140, category: 'Pastries', description: 'Soft and delicious', icon: '🥐', preparationTime: 2 },
+  { id: '10', name: 'Donut', price: 90, category: 'Pastries', description: 'Classic glazed donut', icon: '🍩', preparationTime: 1 },
   
   // Sandwiches
-  { id: '11', name: 'Club Sandwich', price: 7.50, category: 'Sandwiches', description: 'Turkey, bacon, lettuce', icon: '🥪', preparationTime: 5 },
-  { id: '12', name: 'Caesar Wrap', price: 6.50, category: 'Sandwiches', description: 'Fresh greens and parmesan', icon: '🌯', preparationTime: 5 },
-  { id: '13', name: 'Veggie Sandwich', price: 5.50, category: 'Sandwiches', description: 'Fresh vegetables', icon: '🥗', preparationTime: 4 },
-  { id: '14', name: 'Tuna Sandwich', price: 6.00, category: 'Sandwiches', description: 'Premium tuna mix', icon: '🥪', preparationTime: 4 },
+  { id: '11', name: 'Club Sandwich', price: 280, category: 'Sandwiches', description: 'Turkey, bacon, lettuce', icon: '🥪', preparationTime: 5 },
+  { id: '12', name: 'Caesar Wrap', price: 240, category: 'Sandwiches', description: 'Fresh greens and parmesan', icon: '🌯', preparationTime: 5 },
+  { id: '13', name: 'Veggie Sandwich', price: 200, category: 'Sandwiches', description: 'Fresh vegetables', icon: '🥗', preparationTime: 4 },
+  { id: '14', name: 'Tuna Sandwich', price: 250, category: 'Sandwiches', description: 'Premium tuna mix', icon: '🥪', preparationTime: 4 },
 ];
 
 const CATEGORIES = ['All', 'Coffee', 'Pastries', 'Sandwiches'];
@@ -123,7 +124,7 @@ export default function MenuPage() {
                   <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
                 </div>
                 <div className="flex items-center justify-between pt-2">
-                  <span className="text-2xl font-bold text-primary">${item.price.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-primary">{formatINR(item.price)}</span>
                   <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
                     {item.preparationTime} min
                   </span>
@@ -164,7 +165,7 @@ export default function MenuPage() {
               </div>
 
               <div className="bg-muted/30 rounded-lg p-4">
-                <p className="text-2xl font-bold text-primary">${selectedItem.price.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-primary">{formatINR(selectedItem.price)}</p>
               </div>
 
               <div className="space-y-2">
@@ -198,7 +199,7 @@ export default function MenuPage() {
                   onClick={handleAddToCart}
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
-                  Add to Cart (${(selectedItem.price * quantity).toFixed(2)})
+                  Add to Cart ({formatINR(selectedItem.price * quantity)})
                 </Button>
               </div>
             </motion.div>

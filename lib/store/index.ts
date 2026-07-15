@@ -11,6 +11,10 @@ interface AuthStore {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, role: string) => Promise<void>;
   loginWithGoogle: (role?: string) => Promise<void>;
+  // Syncs the Mongo profile after a Firebase sign-in the store didn't perform
+  // itself (e.g. phone OTP). Returns the synced user so callers can route by role.
+  syncProfile: (payload?: { name?: string; role?: string }) => Promise<User>;
+  updateProfile: (payload: { name?: string; phone?: string }) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
   setError: (error: string | null) => void;
@@ -52,6 +56,8 @@ interface OrderStore {
   loading: boolean;
   error: string | null;
   fetchOrders: () => Promise<void>;
+  // Staff view: every order in the system (admin/chef only).
+  fetchAllOrders: () => Promise<void>;
   fetchOrderById: (id: string) => Promise<void>;
   createOrder: (order: Partial<PreOrder>) => Promise<void>;
   updateOrderStatus: (id: string, status: string) => Promise<void>;
@@ -165,6 +171,32 @@ export const useAuthStore = create<AuthStore>((set) => ({
     }
   },
 
+  syncProfile: async (payload = {}) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { user } = await authApi.sync({
+        name: payload.name,
+        role: payload.role as 'customer' | 'chef' | 'admin' | undefined
+      });
+      set({ user, isLoading: false });
+      return user;
+    } catch (error: any) {
+      set({ error: error?.response?.data?.message ?? (error as Error).message, isLoading: false });
+      throw error;
+    }
+  },
+
+  updateProfile: async (payload) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { user } = await authApi.updateMe(payload);
+      set({ user, isLoading: false });
+    } catch (error: any) {
+      set({ error: error?.response?.data?.message ?? (error as Error).message, isLoading: false });
+      throw error;
+    }
+  },
+
   logout: async () => {
     await signOutUser();
     set({ user: null });
@@ -236,7 +268,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 }));
 
-export const useMenuStore = create<MenuStore>((set) => ({
+export const useMenuStore = create<MenuStore>((set, get) => ({
   items: [],
   loading: false,
   error: null,
@@ -305,6 +337,16 @@ export const useOrderStore = create<OrderStore>((set) => ({
     set({ loading: true, error: null });
     try {
       const { orders } = await orderApi.getAll();
+      set({ orders: orders.map(mapOrderResponse), loading: false });
+    } catch (error: any) {
+      set({ error: error?.response?.data?.message ?? (error as Error).message, loading: false });
+    }
+  },
+
+  fetchAllOrders: async () => {
+    set({ loading: true, error: null });
+    try {
+      const { orders } = await orderApi.getAllAdmin();
       set({ orders: orders.map(mapOrderResponse), loading: false });
     } catch (error: any) {
       set({ error: error?.response?.data?.message ?? (error as Error).message, loading: false });

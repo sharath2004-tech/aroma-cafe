@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(node -e \"console.log\\(require\\('./node_modules/mongoose/package.json'\\).version\\)\")",
-      "Bash(node -e \"console.log\\(require\\('./node_modules/express/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\(require\\('./node_modules/express/package.json'\\).version\\)\")",
+      "Bash(python -)"
     ]
   }
 }

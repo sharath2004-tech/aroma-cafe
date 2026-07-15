@@ -6,11 +6,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { PhoneAuthForm } from '@/components/auth/PhoneAuthForm';
 import { useAuthStore } from '@/lib/store';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, loginWithGoogle, isLoading, error, setError } = useAuthStore();
+  const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
@@ -65,7 +67,28 @@ export default function LoginPage() {
             <p className="text-muted-foreground mt-2">Sign in to your Urban Crave account</p>
           </div>
 
+          {/* Method toggle */}
+          <div className="grid grid-cols-2 gap-1 bg-muted/50 p-1 rounded-lg">
+            {(['email', 'phone'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { setMethod(m); setLocalError(''); setError(null); }}
+                className={`py-2 rounded-md text-sm font-medium transition-all ${
+                  method === m
+                    ? 'bg-card text-foreground shadow border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {m === 'email' ? '✉️ Email' : '📱 Phone'}
+              </button>
+            ))}
+          </div>
+
           {/* Form */}
+          {method === 'phone' ? (
+            <PhoneAuthForm />
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {(localError || error) && (
               <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-2 rounded-lg text-sm">
@@ -103,6 +126,7 @@ export default function LoginPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
+          )}
 
           {/* Divider */}
           <div className="relative">
