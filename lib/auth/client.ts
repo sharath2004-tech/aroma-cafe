@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { auth } from '../firebase/client';
+import { getFirebaseAuth } from '../firebase/client';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -12,7 +12,7 @@ const apiClient = axios.create({
 
 // Attach the current Firebase ID token to every request.
 apiClient.interceptors.request.use(async (config) => {
-  const firebaseUser = auth.currentUser;
+  const firebaseUser = typeof window !== 'undefined' ? getFirebaseAuth().currentUser : null;
   if (firebaseUser) {
     const idToken = await firebaseUser.getIdToken();
     config.headers.Authorization = `Bearer ${idToken}`;

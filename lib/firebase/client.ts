@@ -1,5 +1,5 @@
-import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -10,5 +10,22 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
+// Initialized lazily: getAuth() validates the API key immediately, so running it
+// at module scope crashes `next build` prerendering (where env vars may be absent).
+// All real usage happens in the browser via event handlers/effects.
+let app: FirebaseApp | undefined;
+let authInstance: Auth | undefined;
+
+export function getFirebaseApp(): FirebaseApp {
+  if (!app) {
+    app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  }
+  return app;
+}
+
+export function getFirebaseAuth(): Auth {
+  if (!authInstance) {
+    authInstance = getAuth(getFirebaseApp());
+  }
+  return authInstance;
+}
