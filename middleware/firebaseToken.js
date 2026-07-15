@@ -1,4 +1,4 @@
-import admin from '../config/firebaseAdmin.js';
+import { adminAuth } from '../config/firebaseAdmin.js';
 
 // Verifies the Firebase ID token only — used by /api/auth/sync, which runs
 // before a matching Mongo User document is guaranteed to exist.
@@ -10,7 +10,7 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 
   try {
-    req.firebaseUser = await admin.auth().verifyIdToken(token);
+    req.firebaseUser = await adminAuth.verifyIdToken(token);
     next();
   } catch (error) {
     return res.status(401).json({ message: '❌ Invalid or expired token' });

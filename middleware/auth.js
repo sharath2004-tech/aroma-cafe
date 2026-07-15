@@ -1,4 +1,4 @@
-import admin from '../config/firebaseAdmin.js';
+import { adminAuth } from '../config/firebaseAdmin.js';
 import User from '../models/User.js';
 
 // Verifies the Firebase ID token AND requires a matching Mongo profile
@@ -11,7 +11,7 @@ const authMiddleware = async (req, res, next) => {
   }
 
   try {
-    const decoded = await admin.auth().verifyIdToken(token);
+    const decoded = await adminAuth.verifyIdToken(token);
     const user = await User.findOne({ firebaseUid: decoded.uid });
 
     if (!user) {
